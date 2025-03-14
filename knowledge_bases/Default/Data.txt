@@ -1,0 +1,34 @@
+name: Aadish
+age: 20
+occupation: student
+college: IIT Indore
+Degree: Computer science and engineering
+Year of Study: 6th semester
+other skills: AI tools and Chatgpt Expert
+
+name: Abhinav
+age: 20
+occupation: Student
+college: IIT Indore
+Degree: Computer science and engineering
+Year of Study: 6th semester
+other skills: Badminton player and Expert on Codeforces
+
+name: Ksitiz
+age: 20
+occupation: student
+college: IIT Indore
+Degree: Computer science and engineering
+Year of Study: 6th semester
+other skills: he is specialist on codeforces and an expert in transformers
+
+name: Siddhesh
+age: 20
+occupation: Student
+college: IIT Indore
+Degree: Computer science and engineering
+Year of Study: 6th semester
+other skills: literally the god of world
+Internship : De Shaw
+Stipend : 1.5 lakhs
+POR: Head of cybersecurity division of the programming club of IIT Indore

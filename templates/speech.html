@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>RAG Chatbot - Speech Input</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
+  <style>
+    #status {
+      font-weight: bold;
+      color: red;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1 class="mt-4">Speech Input</h1>
+  <p id="status">Click "Start Recording" to begin.</p>
+  <textarea id="transcript" class="form-control" rows="5" placeholder="Your speech transcript will appear here..." readonly></textarea>
+  <br>
+  <button id="startBtn" class="btn btn-primary">Start Recording</button>
+  <button id="stopBtn" class="btn btn-danger" style="display:none;">Stop Recording</button>
+  <br><br>
+  <div id="saveDiscard" style="display:none;">
+    <form method="post" action="{{ url_for('speech_input') }}">
+      <input type="hidden" id="transcriptInput" name="transcript">
+      <button type="submit" class="btn btn-success">Save Transcript</button>
+      <button type="button" id="discardBtn" class="btn btn-secondary">Discard Transcript</button>
+    </form>
+  </div>
+  <br>
+  <a href="{{ url_for('query_page') }}" class="btn btn-secondary">Back to Query</a>
+  <br><br>
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <div class="alert alert-info">
+        {% for message in messages %}
+          <p>{{ message }}</p>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+</div>
+<script>
+  // Check for browser support for SpeechRecognition
+  window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+
+  if (window.SpeechRecognition === null) {
+    document.getElementById("status").innerHTML = "Speech recognition not supported in this browser.";
+  } else {
+    const recognizer = new window.SpeechRecognition();
+    recognizer.continuous = true;
+    recognizer.interimResults = true;
+
+    let finalTranscript = "";
+    let isRecording = false;
+    let manualStop = false;
+
+    const startBtn = document.getElementById("startBtn");
+    const stopBtn = document.getElementById("stopBtn");
+    const transcriptArea = document.getElementById("transcript");
+    const status = document.getElementById("status");
+    const saveDiscardDiv = document.getElementById("saveDiscard");
+    const transcriptInput = document.getElementById("transcriptInput");
+    const discardBtn = document.getElementById("discardBtn");
+
+    recognizer.onstart = function() {
+      status.innerHTML = "Recording... Speak now.";
+      startBtn.style.display = "none";
+      stopBtn.style.display = "inline-block";
+      finalTranscript = "";
+      transcriptArea.value = "";
+      saveDiscardDiv.style.display = "none";
+    };
+
+    recognizer.onerror = function(event) {
+      console.error("Speech recognition error", event);
+      status.innerHTML = "Error occurred: " + event.error;
+    };
+
+    recognizer.onend = function() {
+      // If we haven't manually stopped, restart the recognizer.
+      if (!manualStop) {
+        recognizer.start();
+      } else {
+        status.innerHTML = "Recording stopped.";
+        stopBtn.style.display = "none";
+        startBtn.style.display = "inline-block";
+        transcriptArea.value = finalTranscript;
+        if(finalTranscript.trim().length > 0) {
+          saveDiscardDiv.style.display = "block";
+          transcriptInput.value = finalTranscript;
+        }
+      }
+    };
+
+    recognizer.onresult = function(event) {
+      let interimTranscript = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        } else {
+          interimTranscript += event.results[i][0].transcript;
+        }
+      }
+      transcriptArea.value = finalTranscript + interimTranscript;
+    };
+
+    startBtn.addEventListener("click", function() {
+      manualStop = false;
+      isRecording = true;
+      recognizer.start();
+    });
+
+    stopBtn.addEventListener("click", function() {
+      manualStop = true;
+      isRecording = false;
+      recognizer.stop();
+    });
+
+    discardBtn.addEventListener("click", function() {
+      finalTranscript = "";
+      transcriptArea.value = "";
+      saveDiscardDiv.style.display = "none";
+      status.innerHTML = "Recording discarded. Click 'Start Recording' to try again.";
+    });
+  }
+</script>
+</body>
+</html>

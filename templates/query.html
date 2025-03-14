@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>RAG Chatbot - Query</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
+</head>
+<body>
+<div class="container">
+  <h1 class="mt-4">Ask Your Query</h1>
+  <form method="post" action="{{ url_for('query_page') }}">
+    <div class="form-group">
+      <label for="query">Your Query:</label>
+      <textarea class="form-control" id="query" name="query" rows="3"></textarea>
+    </div>
+    <div class="form-group">
+      <label for="model">Select Model:</label>
+      <select class="form-control" id="model" name="model">
+        <option value="mistralai/Mistral-7B-Instruct-v0.2">Mistral-7B-Instruct-v0.2</option>
+        <option value="HuggingFaceH4/zephyr-7b-alpha">zephyr-7b-alpha</option>
+        <option value="gpt2">GPT-2</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Get Answer</button>
+  </form>
+  <br>
+  {% if query and answer %}
+    <div class="card">
+      <div class="card-header">Your Query</div>
+      <div class="card-body">
+        <p>{{ query }}</p>
+      </div>
+    </div>
+    <br>
+    <div class="card">
+      <div class="card-header">Bot Answer</div>
+      <div class="card-body">
+        <p>{{ answer }}</p>
+      </div>
+    </div>
+  {% endif %}
+  <br>
+  <a href="{{ url_for('speech_input') }}" class="btn btn-secondary">Add Speech Input</a>
+  <br><br>
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <div class="alert alert-info">
+        {% for message in messages %}
+          <p>{{ message }}</p>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+</div>
+</body>
+</html>

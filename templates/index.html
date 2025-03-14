@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>RAG Chatbot - Select Knowledge Base</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
+</head>
+<body>
+<div class="container">
+  <h1 class="mt-4">Select Knowledge Base</h1>
+  <form method="post" action="{{ url_for('set_kb') }}">
+    <div class="form-group">
+      <label for="knowledge_base">Available Knowledge Bases:</label>
+      <select class="form-control" id="knowledge_base" name="knowledge_base">
+        {% for kb, name in zip(kb_list, kb_display) %}
+        <option value="{{ kb }}">{{ name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Load Knowledge Base</button>
+  </form>
+  <br>
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <div class="alert alert-info">
+        {% for message in messages %}
+          <p>{{ message }}</p>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+</div>
+</body>
+</html>
