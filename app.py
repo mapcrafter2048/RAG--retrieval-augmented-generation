@@ -11,9 +11,6 @@ from transformers import pipeline
 
 # Initialize Flask app
 app = Flask(__name__)
-app.secret_key = "your_secret_key"
-
-# HF_API_KEY = "your_hugging_face_api_key"
 
 app.jinja_env.globals.update(zip=zip)
 
