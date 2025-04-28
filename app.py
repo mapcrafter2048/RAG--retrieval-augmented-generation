@@ -23,7 +23,7 @@ from evaluation import (
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
-HF_API_KEY = "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" # Replace or load securely
+HF_API_KEY = "" # Replace or load securely
 
 # Initialize Flask app
 app = Flask(__name__)
