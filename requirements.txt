@@ -1,0 +1,9 @@
+flask==2.0.1
+faiss-cpu==1.7.2
+sentence-transformers==2.2.2
+numpy==1.21.2
+scikit-learn==1.0.2
+pypdf2==3.0.1
+requests==2.26.0
+speechrecognition==3.8.1
+werkzeug==2.0.1
