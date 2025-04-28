@@ -66,7 +66,7 @@ def is_safe_path(base, path_to_check):
     return os.path.commonpath([abs_base]) == os.path.commonpath([abs_base, abs_path])
 
 
-# --- Data Ingestion (Mostly Unchanged) ---
+# --- Data Ingestion ---
 
 def load_txt_file(file_path):
     """Loads text content from a TXT file."""
@@ -168,9 +168,9 @@ def list_files_in_kb(kb_directory):
     return sorted(files) # Sort for consistent display
 
 
-# --- Speech-to-Text (Unchanged, still not used by web UI) ---
+# --- Speech-to-Text ---
 def speech_to_text_from_mic():
-    # ... (implementation remains the same) ...
+    """Captures audio from the microphone and converts it to text."""
     pass
 
 def store_text_in_kb(text, kb_directory):
@@ -179,11 +179,9 @@ def store_text_in_kb(text, kb_directory):
         logging.error(f"Cannot store text, invalid or unsafe KB directory: {kb_directory}")
         return None
     timestamp = time.strftime("%Y%m%d-%H%M%S")
-    # Sanitize potential user input from speech if needed, though less likely
     base_filename = f"speech_{timestamp}.txt"
-    filename = os.path.join(kb_directory, base_filename) # No need for secure_filename here usually
+    filename = os.path.join(kb_directory, base_filename) 
 
-    # Ensure the final path is still safe
     if not is_safe_path(kb_directory, filename):
          logging.error(f"Unsafe path generated for storing speech: {filename}")
          return None
@@ -200,7 +198,6 @@ def store_text_in_kb(text, kb_directory):
 # --- Text Chunking & Vector Store ---
 
 def chunk_text(text, source_doc, chunk_size=300, overlap=50):
-    # ... (implementation remains the same, still returns list of dicts) ...
     if not text: return []
     words = text.split()
     chunks = []
@@ -251,7 +248,7 @@ def build_vector_store(doc_chunks):
         embeddings = embedder.encode(
             chunk_texts,
             convert_to_numpy=True,
-            show_progress_bar=True # THIS WILL PRINT TO CONSOLE
+            show_progress_bar=True 
         )
         end_time = time.time()
         logging.info(f"Embeddings generated in {end_time - start_time:.2f} seconds.")
@@ -301,7 +298,7 @@ def retrieve_relevant_chunks(query, k=3):
         return []
 
 
-# --- Re-usable Indexing Function ---
+# --- Indexing Function ---
 def rebuild_index(kb_path):
     """Loads docs, chunks, and rebuilds the vector index for a given KB path."""
     global faiss_index, chunk_mapping
@@ -344,7 +341,6 @@ def rebuild_index(kb_path):
 # --- Prompt & Response Generation ---
 
 def construct_prompt(query, context_chunks):
-    # ... (implementation remains the same) ...
     if not context_chunks: context_text = "No relevant context found."
     else:
         context_items = []
@@ -363,7 +359,6 @@ def construct_prompt(query, context_chunks):
 
 
 def generate_response(prompt, model_name, max_tokens=250):
-    # ... (implementation remains the same) ...
     API_URL = f"https://api-inference.huggingface.co/models/{model_name}"
     headers = {"Authorization": f"Bearer {HF_API_KEY}"}
     payload = { "inputs": prompt, "parameters": { "max_new_tokens": max_tokens, "temperature": 0.7, "top_p": 0.9, "do_sample": True, "return_full_text": False }, "options": { "wait_for_model": True } }
@@ -378,13 +373,11 @@ def generate_response(prompt, model_name, max_tokens=250):
     except requests.exceptions.RequestException as e:
         logging.error(f"API request failed: {e}")
         error_msg = f"Error: Failed to get response from {model_name}."
-        # ... (error detail extraction) ...
         return error_msg
     except Exception as e: return f"Error: An unexpected error occurred."
 
 
 def evaluate_retrieval_simple(retrieved_chunks):
-    # ... (implementation remains the same) ...
     if not retrieved_chunks: return {"Recall@3": 0.0, "MRR": 0.0}
     relevant_proxy = [retrieved_chunks[0]['text']]
     retrieved_texts = [chunk['text'] for chunk in retrieved_chunks]
@@ -698,7 +691,6 @@ def speech_input():
 
 @app.route("/rag_eval", methods=["GET", "POST"])
 def rag_eval():
-    # --- RAG Eval Logic (Mostly Unchanged, but check KB load status) ---
     current_kb_path = app.config.get('CURRENT_KB')
     results = None
     eval_data = {}
@@ -771,7 +763,6 @@ def rag_eval():
 
 
 if __name__ == "__main__":
-    # Make sure the base KB directory exists on startup
     if not os.path.exists(app.config['BASE_KB_DIR']):
         try:
             os.makedirs(app.config['BASE_KB_DIR'])
