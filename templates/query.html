@@ -1,55 +1,188 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>RAG Chatbot - Query</title>
-  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RAG Chatbot - Query & Manage Files</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <style>
+    body { padding-top: 20px; }
+    .container { max-width: 950px; }
+    .card { margin-top: 20px; }
+    .context-box, .file-list-box {
+        max-height: 200px;
+        overflow-y: auto;
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        padding: 10px;
+        font-size: 0.9em;
+        margin-top: 10px;
+    }
+    .context-item, .file-item {
+        border-bottom: 1px dashed #ccc;
+        padding-bottom: 5px;
+        margin-bottom: 5px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+     .context-item:last-child, .file-item:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+    }
+    .file-item form { margin-left: 10px; }
+
+  </style>
 </head>
 <body>
 <div class="container">
-  <h1 class="mt-4">Ask Your Query</h1>
-  <form method="post" action="{{ url_for('query_page') }}">
-    <div class="form-group">
-      <label for="query">Your Query:</label>
-      <textarea class="form-control" id="query" name="query" rows="3"></textarea>
-    </div>
-    <div class="form-group">
-      <label for="model">Select Model:</label>
-      <select class="form-control" id="model" name="model">
-        <option value="mistralai/Mistral-7B-Instruct-v0.2">Mistral-7B-Instruct-v0.2</option>
-        <option value="HuggingFaceH4/zephyr-7b-alpha">zephyr-7b-alpha</option>
-        <option value="gpt2">GPT-2</option>
-      </select>
-    </div>
-    <button type="submit" class="btn btn-primary">Get Answer</button>
-  </form>
-  <br>
-  {% if query and answer %}
-    <div class="card">
-      <div class="card-header">Your Query</div>
-      <div class="card-body">
-        <p>{{ query }}</p>
-      </div>
-    </div>
-    <br>
-    <div class="card">
-      <div class="card-header">Bot Answer</div>
-      <div class="card-body">
-        <p>{{ answer }}</p>
-      </div>
-    </div>
-  {% endif %}
-  <br>
-  <a href="{{ url_for('speech_input') }}" class="btn btn-secondary">Add Speech Input</a>
-  <br><br>
-  {% with messages = get_flashed_messages() %}
+  <div class="d-flex justify-content-between align-items-center mb-3">
+     <h1 class="mt-4">Query & Manage Files</h1>
+     <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-secondary">Change KB</a>
+  </div>
+
+  <p>Using Knowledge Base: <strong>{{ current_kb_name }}</strong></p>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
-      <div class="alert alert-info">
-        {% for message in messages %}
-          <p>{{ message }}</p>
-        {% endfor %}
-      </div>
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category if category else 'info' }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+      {% endfor %}
     {% endif %}
   {% endwith %}
+
+ {% if model_error %}
+    <div class="alert alert-danger">Embedding model failed to load. Querying is disabled.</div>
+ {% endif %}
+
+ <div class="row">
+    <div class="col-md-7">
+        <h2>Ask a Query</h2>
+        <form method="post" action="{{ url_for('query_page') }}">
+            <div class="form-group">
+            <label for="query">Your Query:</label>
+            <textarea class="form-control" id="query" name="query" rows="3" required {% if model_error %}disabled{% endif %}>{{ request.form['query'] if request.form['query'] }}</textarea>
+            </div>
+            <div class="form-group">
+            <label for="model">Select Model:</label>
+            <select class="form-control" id="model" name="model" required {% if model_error %}disabled{% endif %}>
+                <option value="mistralai/Mistral-Nemo-Instruct-2407" {% if request.form['model'] == 'mistralai/Mistral-Nemo-Instruct-2407' %}selected{% endif %}>Mistral-Nemo-Instruct-2407</option>
+                <option value="mistralai/Mistral-7B-Instruct-v0.2" {% if request.form['model'] == 'mistralai/Mistral-7B-Instruct-v0.2' %}selected{% endif %}>Mistral-7B-Instruct-v0.2</option>
+                <option value="Qwen/Qwen2-7B-Instruct" {% if request.form['model'] == 'Qwen/Qwen2-7B-Instruct' %}selected{% endif %}>Qwen2-7B-Instruct</option>
+                <option value="HuggingFaceH4/zephyr-7b-beta" {% if request.form['model'] == 'HuggingFaceH4/zephyr-7b-beta' %}selected{% endif %}>zephyr-7b-beta</option>
+                <option value="google/gemma-7b-it" {% if request.form['model'] == 'google/gemma-7b-it' %}selected{% endif %}>gemma-7b-it</option>
+                <option value="gpt2" {% if request.form['model'] == 'gpt2' %}selected{% endif %}>GPT-2 (Faster, less capable)</option>
+            </select>
+            <small class="form-text text-muted">Models run via Hugging Face Inference API.</small>
+            </div>
+            <button type="submit" class="btn btn-primary" {% if model_error %}disabled{% endif %}>Get Answer</button>
+        </form>
+
+        {% if query and answer %}
+            <div class="card">
+            <div class="card-header">Result</div>
+            <div class="card-body">
+                <h5 class="card-title">Query:</h5>
+                <p class="card-text">{{ query }}</p>
+                <hr>
+                <h5 class="card-title">Answer:</h5>
+                <p class="card-text" style="white-space: pre-wrap;">{{ answer }}</p>
+            </div>
+            </div>
+
+            {% if context_chunks %}
+            <div class="card">
+                <div class="card-header">Retrieved Context (Top {{ context_chunks|length }})</div>
+                <div class="card-body">
+                <div class="context-box">
+                    {% for chunk_text, chunk_source in context_chunks %}
+                    <div class="context-item">
+                        <div>
+                         <p class="mb-1"><strong>Source:</strong> {{ chunk_source }}</p>
+                         <p class="mb-0">{{ chunk_text }}</p>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if eval_metrics %}
+            <div class="card">
+                <div class="card-header">Retrieval Metrics (Simplified)</div>
+                <div class="card-body">
+                <p><small>(Based on assuming the top retrieved chunk is the most relevant)</small></p>
+                <ul>
+                    <li><strong>Recall@3:</strong> {{ eval_metrics["Recall@3"] }}</li>
+                    <li><strong>MRR:</strong> {{ eval_metrics["MRR"] }}</li>
+                </ul>
+                </div>
+            </div>
+            {% endif %}
+        {% endif %}
+
+    </div>
+
+    <div class="col-md-5">
+        <h2>Manage Files in '{{ current_kb_name }}'</h2>
+
+        <div class="card mb-4">
+            <div class="card-header">Upload New File</div>
+            <div class="card-body">
+                <form action="{{ url_for('upload_file') }}" method="post" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label for="file">Select file (.txt or .pdf):</label>
+                        <input type="file" class="form-control-file" name="file" id="file" accept=".txt,.pdf" required>
+                    </div>
+                    <button type="submit" class="btn btn-success">Upload & Rebuild Index</button>
+                </form>
+                 <small class="form-text text-muted mt-2">Uploading will re-index all documents in this KB.</small>
+            </div>
+        </div>
+
+
+        <div class="card">
+            <div class="card-header">Existing Files</div>
+            <div class="card-body">
+                 {% if kb_files %}
+                    <div class="file-list-box">
+                        {% for filename in kb_files %}
+                            <div class="file-item">
+                                <span>{{ filename }}</span>
+                                <form action="{{ url_for('delete_file') }}" method="post" onsubmit="return confirm('Are you sure you want to delete the file \'{{ filename }}\'? This will trigger index rebuild.');">
+                                    <input type="hidden" name="filename" value="{{ filename }}">
+                                    <input type="hidden" name="kb_path" value="{{ current_kb_path }}">
+                                    <button type="submit" class="btn btn-xs btn-danger py-0 px-1">×</button> <!-- Small delete button -->
+                                </form>
+                            </div>
+                        {% endfor %}
+                    </div>
+                 {% else %}
+                    <p><em>No files found in this knowledge base.</em></p>
+                 {% endif %}
+            </div>
+        </div>
+
+        <hr>
+        <a href="{{ url_for('speech_input') }}" class="btn btn-secondary mt-2">Add Speech Input</a>
+
+    </div>
+ </div>
+
+
+  <div class="mt-4 mb-4">
+      <a href="{{ url_for('rag_eval') }}" class="btn btn-info">Evaluate RAG Pipeline</a>
+  </div>
+
 </div>
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.3/dist/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 </body>
 </html>

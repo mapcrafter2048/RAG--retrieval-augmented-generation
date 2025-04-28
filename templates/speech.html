@@ -1,128 +1,217 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RAG Chatbot - Speech Input</title>
-  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
   <style>
+    body { padding-top: 20px; }
+    .container { max-width: 800px; }
     #status {
       font-weight: bold;
-      color: red;
+      min-height: 2em; /* Reserve space for status messages */
+      padding: 5px;
     }
+    .status-recording { color: red; }
+    .status-stopped { color: blue; }
+    .status-error { color: darkred; }
+    .status-ready { color: green; }
+    .status-processing { color: orange; }
   </style>
 </head>
 <body>
 <div class="container">
-  <h1 class="mt-4">Speech Input</h1>
-  <p id="status">Click "Start Recording" to begin.</p>
-  <textarea id="transcript" class="form-control" rows="5" placeholder="Your speech transcript will appear here..." readonly></textarea>
+  <div class="d-flex justify-content-between align-items-center mb-3">
+     <h1 class="mt-4">Add Speech Input to Knowledge Base</h1>
+     <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-secondary">Change KB</a>
+   </div>
+   <p>Target Knowledge Base: <strong>{{ current_kb_name }}</strong></p>
+
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category if category else 'info' }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <div id="speech-controls" class="mb-3">
+      <p id="status" class="status-ready">Browser speech recognition check...</p>
+      <button id="startBtn" class="btn btn-primary" disabled>Start Recording</button>
+      <button id="stopBtn" class="btn btn-danger" style="display:none;">Stop Recording</button>
+  </div>
+
+  <textarea id="transcript" class="form-control" rows="8" placeholder="Your speech transcript will appear here..." readonly></textarea>
   <br>
-  <button id="startBtn" class="btn btn-primary">Start Recording</button>
-  <button id="stopBtn" class="btn btn-danger" style="display:none;">Stop Recording</button>
-  <br><br>
+
   <div id="saveDiscard" style="display:none;">
-    <form method="post" action="{{ url_for('speech_input') }}">
+    <form method="post" action="{{ url_for('speech_input') }}" id="saveForm">
       <input type="hidden" id="transcriptInput" name="transcript">
-      <button type="submit" class="btn btn-success">Save Transcript</button>
+      <button type="submit" class="btn btn-success">Save Transcript to KB</button>
       <button type="button" id="discardBtn" class="btn btn-secondary">Discard Transcript</button>
+      <small class="form-text text-muted">Saving adds this transcript as a new .txt file. Reload the KB to include it in searches.</small>
     </form>
   </div>
   <br>
   <a href="{{ url_for('query_page') }}" class="btn btn-secondary">Back to Query</a>
-  <br><br>
-  {% with messages = get_flashed_messages() %}
-    {% if messages %}
-      <div class="alert alert-info">
-        {% for message in messages %}
-          <p>{{ message }}</p>
-        {% endfor %}
-      </div>
-    {% endif %}
-  {% endwith %}
+
 </div>
+
 <script>
+  const startBtn = document.getElementById("startBtn");
+  const stopBtn = document.getElementById("stopBtn");
+  const transcriptArea = document.getElementById("transcript");
+  const status = document.getElementById("status");
+  const saveDiscardDiv = document.getElementById("saveDiscard");
+  const transcriptInput = document.getElementById("transcriptInput");
+  const discardBtn = document.getElementById("discardBtn");
+  const saveForm = document.getElementById("saveForm");
+
   // Check for browser support for SpeechRecognition
   window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
 
   if (window.SpeechRecognition === null) {
-    document.getElementById("status").innerHTML = "Speech recognition not supported in this browser.";
+    status.innerHTML = "Speech recognition not supported in this browser. Please try Chrome or Edge.";
+    status.className = "status-error";
+    startBtn.disabled = true;
   } else {
+    status.innerHTML = "Speech recognition ready. Click 'Start Recording'.";
+    status.className = "status-ready";
+    startBtn.disabled = false;
+
     const recognizer = new window.SpeechRecognition();
-    recognizer.continuous = true;
-    recognizer.interimResults = true;
+    recognizer.continuous = true; // Keep listening even after pauses
+    recognizer.interimResults = true; // Show results as they come in
+    recognizer.lang = 'en-US'; // Set language
 
     let finalTranscript = "";
     let isRecording = false;
-    let manualStop = false;
-
-    const startBtn = document.getElementById("startBtn");
-    const stopBtn = document.getElementById("stopBtn");
-    const transcriptArea = document.getElementById("transcript");
-    const status = document.getElementById("status");
-    const saveDiscardDiv = document.getElementById("saveDiscard");
-    const transcriptInput = document.getElementById("transcriptInput");
-    const discardBtn = document.getElementById("discardBtn");
 
     recognizer.onstart = function() {
+      console.log("Speech recognition started.");
+      isRecording = true;
       status.innerHTML = "Recording... Speak now.";
+      status.className = "status-recording";
       startBtn.style.display = "none";
       stopBtn.style.display = "inline-block";
-      finalTranscript = "";
-      transcriptArea.value = "";
-      saveDiscardDiv.style.display = "none";
+      finalTranscript = transcriptArea.value; // Keep existing text if restarting after stop
+      saveDiscardDiv.style.display = "none"; // Hide save/discard while recording
     };
 
     recognizer.onerror = function(event) {
-      console.error("Speech recognition error", event);
-      status.innerHTML = "Error occurred: " + event.error;
+      console.error("Speech recognition error:", event.error, event.message);
+      status.innerHTML = "Error: " + event.error + ". " + event.message;
+       status.className = "status-error";
+      // Stop recording on error, allow user to retry
+      stopRecording();
     };
 
     recognizer.onend = function() {
-      // If we haven't manually stopped, restart the recognizer.
-      if (!manualStop) {
-        recognizer.start();
+      console.log("Speech recognition ended.");
+      isRecording = false;
+      // Only update status if not already showing an error
+      if (!status.classList.contains('status-error')) {
+         status.innerHTML = "Recording stopped.";
+         status.className = "status-stopped";
+      }
+      stopBtn.style.display = "none";
+      startBtn.style.display = "inline-block";
+
+      // Show save/discard options only if there's a non-empty transcript
+      if (finalTranscript.trim().length > 0) {
+        transcriptInput.value = finalTranscript; // Update hidden input
+        saveDiscardDiv.style.display = "block";
       } else {
-        status.innerHTML = "Recording stopped.";
-        stopBtn.style.display = "none";
-        startBtn.style.display = "inline-block";
-        transcriptArea.value = finalTranscript;
-        if(finalTranscript.trim().length > 0) {
-          saveDiscardDiv.style.display = "block";
-          transcriptInput.value = finalTranscript;
-        }
+          saveDiscardDiv.style.display = "none";
       }
     };
 
     recognizer.onresult = function(event) {
       let interimTranscript = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
+      status.innerHTML = "Processing speech..."; // Indicate processing
+      status.className = "status-processing";
+
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
         if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript;
+          finalTranscript += event.results[i][0].transcript + ' '; // Add space after final segments
         } else {
           interimTranscript += event.results[i][0].transcript;
         }
       }
+      // Display combined final and interim transcript
       transcriptArea.value = finalTranscript + interimTranscript;
+
+      // Update status back to recording if still active
+       if (isRecording) {
+            status.innerHTML = "Recording... Speak now.";
+            status.className = "status-recording";
+       }
     };
 
-    startBtn.addEventListener("click", function() {
-      manualStop = false;
-      isRecording = true;
-      recognizer.start();
-    });
+    function startRecording() {
+        if (!isRecording) {
+            // Clear previous error messages before starting
+            if (status.classList.contains('status-error')) {
+                 status.innerHTML = "Speech recognition ready. Click 'Start Recording'.";
+                 status.className = "status-ready";
+            }
+            try {
+                 // Reset final transcript *only* if starting fresh (not resuming)
+                 if (transcriptArea.value.trim() === finalTranscript.trim()) {
+                     finalTranscript = "";
+                     transcriptArea.value = "";
+                 } else {
+                      finalTranscript = transcriptArea.value; // Keep existing text if user modified it
+                 }
 
-    stopBtn.addEventListener("click", function() {
-      manualStop = true;
-      isRecording = false;
-      recognizer.stop();
-    });
+                 recognizer.start();
+            } catch(e) {
+                 console.error("Error starting recognizer:", e);
+                 status.innerHTML = "Error starting recording. Is microphone access granted?";
+                 status.className = "status-error";
+            }
+        }
+    }
+
+    function stopRecording() {
+        if (isRecording) {
+            recognizer.stop(); // This will trigger the onend event
+        }
+    }
+
+
+    startBtn.addEventListener("click", startRecording);
+    stopBtn.addEventListener("click", stopRecording);
 
     discardBtn.addEventListener("click", function() {
       finalTranscript = "";
       transcriptArea.value = "";
+      transcriptInput.value = ""; // Clear hidden input too
       saveDiscardDiv.style.display = "none";
-      status.innerHTML = "Recording discarded. Click 'Start Recording' to try again.";
+      status.innerHTML = "Transcript discarded. Click 'Start Recording' to try again.";
+      status.className = "status-ready";
     });
+
+
+     saveForm.addEventListener('submit', function(event) {
+         if (transcriptInput.value.trim().length === 0) {
+             event.preventDefault(); // Stop submission
+             alert("Cannot save an empty transcript.");
+              status.innerHTML = "Cannot save empty transcript.";
+              status.className = "status-error";
+         }
+     });
   }
 </script>
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.3/dist/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 </body>
 </html>

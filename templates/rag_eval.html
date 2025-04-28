@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RAG Evaluation</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+   <style>
+    body { padding-top: 20px; }
+    .container { max-width: 900px; }
+    .card { margin-top: 20px; }
+     .context-box {
+        max-height: 250px;
+        overflow-y: auto;
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        padding: 10px;
+        font-size: 0.9em;
+        margin-top: 10px;
+    }
+    .context-item {
+        border-bottom: 1px dashed #ccc;
+        padding-bottom: 5px;
+        margin-bottom: 5px;
+    }
+     .context-item:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+    }
+    .metric-list li { margin-bottom: 5px; }
+  </style>
+</head>
+<body>
+<div class="container">
+   <div class="d-flex justify-content-between align-items-center mb-3">
+       <h1 class="mt-4">Evaluate RAG Pipeline</h1>
+       <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-secondary">Change KB</a>
+   </div>
+   <p>Using Knowledge Base: <strong>{{ current_kb_name }}</strong></p>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category if category else 'info' }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  {% if error %}
+       <div class="alert alert-danger">{{ error }}</div>
+  {% endif %}
+
+
+  <form method="post" action="{{ url_for('rag_eval') }}">
+    <div class="form-group">
+      <label for="question">Question:</label>
+      <textarea class="form-control" id="question" name="question" rows="2" required>{{ request.form['question'] }}</textarea>
+    </div>
+    <div class="form-group">
+      <label for="ground_truth">Ground Truth Answer:</label>
+      <textarea class="form-control" id="ground_truth" name="ground_truth" rows="3" required>{{ request.form['ground_truth'] }}</textarea>
+      <small class="form-text text-muted">Provide the ideal, correct answer based on the knowledge base.</small>
+    </div>
+    <div class="form-group">
+      <label for="model">Select Model:</label>
+      <select class="form-control" id="model" name="model" required>
+         <!-- Ensure these match the models in query.html -->
+        <option value="mistralai/Mistral-Nemo-Instruct-2407" {% if request.form['model'] == 'mistralai/Mistral-Nemo-Instruct-2407' %}selected{% endif %}>Mistral-Nemo-Instruct-2407</option>
+        <option value="mistralai/Mistral-7B-Instruct-v0.2" {% if request.form['model'] == 'mistralai/Mistral-7B-Instruct-v0.2' %}selected{% endif %}>Mistral-7B-Instruct-v0.2</option>
+        <option value="Qwen/Qwen2-7B-Instruct" {% if request.form['model'] == 'Qwen/Qwen2-7B-Instruct' %}selected{% endif %}>Qwen2-7B-Instruct</option>
+        <option value="HuggingFaceH4/zephyr-7b-beta" {% if request.form['model'] == 'HuggingFaceH4/zephyr-7b-beta' %}selected{% endif %}>zephyr-7b-beta</option>
+        <option value="google/gemma-7b-it" {% if request.form['model'] == 'google/gemma-7b-it' %}selected{% endif %}>gemma-7b-it</option>
+        <option value="gpt2" {% if request.form['model'] == 'gpt2' %}selected{% endif %}>GPT-2</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary" {% if error or current_kb_name == 'None' %}disabled{% endif %}>Evaluate</button>
+  </form>
+
+  <br>
+
+  {% if results %}
+  <div class="card">
+    <div class="card-header">Evaluation Results</div>
+    <div class="card-body">
+      <p><strong>Question:</strong> {{ results["Question"] }}</p>
+      <p><strong>Ground Truth Answer:</strong> {{ results["Ground_Truth"] }}</p>
+      <p><strong>Generated Answer:</strong> <span style="white-space: pre-wrap;">{{ results["Generated_Answer"] }}</span></p>
+
+      <hr>
+      <h5>Retrieved Context (Top {{ results["Retrieved_Context"]|length }})</h5>
+       {% if results["Retrieved_Context"] %}
+          <div class="context-box">
+            {% for chunk_text, chunk_source in results["Retrieved_Context"] %}
+              <div class="context-item">
+                <p><strong>Source:</strong> {{ chunk_source }}</p>
+                <p>{{ chunk_text }}</p>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+            <p><em>No context was retrieved.</em></p>
+        {% endif %}
+
+      <hr>
+      <h5>Metrics</h5>
+      <div class="row">
+          <div class="col-md-6">
+              <h6>Retrieval Metrics</h6>
+              <ul class="list-unstyled metric-list">
+                <li><strong>Recall@3:</strong> {{ results["Recall@3"] }} <small>(Proxy: Assumes top retrieved chunk relevant)</small></li>
+                <li><strong>MRR:</strong> {{ results["MRR"] }} <small>(Proxy: Assumes top retrieved chunk relevant)</small></li>
+                <li><strong>Context Relevancy:</strong> {{ results["Context_Relevancy"] }} <small>(Avg. Query-Context Similarity)</small></li>
+              </ul>
+          </div>
+          <div class="col-md-6">
+               <h6>Generation Metrics</h6>
+               <ul class="list-unstyled metric-list">
+                <li><strong>Exact Match:</strong> {{ results["Exact_Match"] }}</li>
+                <li><strong>F1 Score:</strong> {{ results["F1"] }} <small>(Token Overlap)</small></li>
+                <li><strong>Answer Similarity:</strong> {{ results["Answer_Similarity"] }} <small>(Generated vs. Ground Truth Cosine Sim)</small></li>
+              </ul>
+          </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <br>
+  <a href="{{ url_for('query_page') }}" class="btn btn-secondary mb-4">Back to Query Page</a>
+</div>
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.3/dist/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>
